@@ -1,15 +1,59 @@
-baseURL = 'https://example.org/'
+baseURL = 'https://linkedin.lanzani.nl/'
 languageCode = 'en-us'
-title = 'LinkedIn Posts'
+title = "Giovanni Lanzani's LinkedIn Posts"
 theme = 'hugola'
-author = 'LinkedIn'
+author = 'Giovanni Lanzani'
 
 [pagination]
   pagerSize = 10
 
 [params]
-  Name = "LinkedIn Posts"
-  Domain = "/"
+Domain = "http://www.lanzani.nl"
+Name = "lanzani.nl"
+Rss = "https://linkedin.lanzani.nl/atom.xml"
+Author = "Giovanni Lanzani"
 
-  [params.Sidebar]
-    Posts = "/posts/"
+[params.sidebar]
+search = "http://duckduckgo.com/?q=site%3Alinkedin.lanzani.nl"
+blog = "https://blog.lanzani.nl/"
+cv = "https://lanzani.nl/cv/"
+publications = "https://lanzani.nl/publications/"
+public = "https://lanzani.nl/public/"
+
+[params.umami]
+base_site = "https://umami.lanzani.nl"
+base_site_id = "19952d0d-2825-4b1a-bb20-f1bca512b0a6"
+
+[params.footer]
+Contact = "mailto:giovanni at this domain?subject=feedback"
+X = "http://twitter.com/gglanzani/"
+GitHub = "http://github.com/gglanzani/"
+Mastodon = "https://mastodon.social/@gla"
+LinkedIn = "http://nl.linkedin.com/pub/giovanni-lanzani/24/618/195"
+
+
+[outputs]
+home = [ "HTML", "RSS" ]
+
+[outputFormats]
+[outputFormats.RSS]
+mediatype = "application/rss"
+baseName = "atom"
+
+[markup]
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true
+  [markup.highlight]
+      noclasses = false
+
+[module]
+  [[module.mounts]]
+    source = "assets"
+    target = "assets"
+  [[module.mounts]]
+    source = "themes/hugola/assets"
+    target = "assets"
+  [[module.mounts]]
+    source = "static/images"
+    target = "assets/images"   
