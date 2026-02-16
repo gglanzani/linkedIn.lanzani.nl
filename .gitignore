@@ -1,2 +1,7 @@
 # Playwright auth state (contains LinkedIn session cookies)
 scripts/.auth/
+public
+resources
+.claude
+.coderlm
+.hugo_build.lock
