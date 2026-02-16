@@ -32,6 +32,12 @@ The site will be available at `http://localhost:1313/`.
 hugo new posts/my-new-post.md
 ```
 
+### Add views, likes, comments
+
+```sh
+uv run --with playwright python scripts/scrape_metrics.py
+```
+
 ## Deployment
 
 The site is automatically built and deployed to [GitHub Pages](https://pages.github.com/) on every push to `main` via the GitHub Actions workflow in `.github/workflows/hugo.yml`.
