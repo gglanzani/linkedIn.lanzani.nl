@@ -203,21 +203,8 @@ func ParseSnapshotPost(item map[string]interface{}) *hugo.Post {
 		}
 	}
 
-	// Title: first ~120 chars of commentary (will be truncated by slug generation)
-	if commentary != "" {
-		post.Title = commentary
-		// Remove newlines from title first so we truncate a single line
-		post.Title = strings.ReplaceAll(post.Title, "\n", " ")
-		post.Title = strings.Join(strings.Fields(post.Title), " ")
-		// Truncate on a valid rune boundary to avoid splitting multi-byte characters
-		if len(post.Title) > 120 {
-			runes := []rune(post.Title)
-			if len(runes) > 120 {
-				runes = runes[:120]
-			}
-			post.Title = string(runes)
-		}
-	}
+	// Title: human-readable date+time
+	post.Title = post.Date.Format("January 2, 2006 at 3:04 PM")
 
 	// Collect image URLs from known media fields
 	for _, key := range []string{"ShareMediaUrl", "ShareMediaURL", "MediaUrl", "MediaURL", "ImageUrl", "ImageURL"} {
@@ -305,14 +292,9 @@ func ParseChangelogPost(evt ChangelogEvent) *hugo.Post {
 
 	// Extract text from various possible locations in the activity data
 	post.Body = extractText(data)
-	if post.Body != "" {
-		post.Title = post.Body
-		if len(post.Title) > 120 {
-			post.Title = post.Title[:120]
-		}
-		post.Title = strings.ReplaceAll(post.Title, "\n", " ")
-		post.Title = strings.Join(strings.Fields(post.Title), " ")
-	}
+
+	// Title: human-readable date+time
+	post.Title = post.Date.Format("January 2, 2006 at 3:04 PM")
 
 	// Build URL from resource ID
 	if evt.ResourceID != "" {

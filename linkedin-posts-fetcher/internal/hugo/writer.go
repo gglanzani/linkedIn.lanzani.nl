@@ -134,13 +134,17 @@ func WritePost(contentDir string, post Post, fallbackSlug string) (string, error
 		buf.WriteString("\n")
 	}
 
-	// --- Images ---
+	// --- Images / Documents ---
 	for i := range post.ImageURLs {
 		imageIdx := i + 2 // existing convention: starts at 2
 		ext := guessImageExt(post.ImageURLs[i])
 		imgFile := ImageFilename(fname, imageIdx, ext)
 		buf.WriteString("\n")
-		fmt.Fprintf(&buf, "![Post image %d](/media/%s)\n", imageIdx, imgFile)
+		if ext == ".pdf" {
+			fmt.Fprintf(&buf, "[📄 View document](/media/%s)\n", imgFile)
+		} else {
+			fmt.Fprintf(&buf, "![Post image %d](/media/%s)\n", imageIdx, imgFile)
+		}
 	}
 
 	if err := os.MkdirAll(contentDir, 0o755); err != nil {
@@ -155,9 +159,13 @@ func WritePost(contentDir string, post Post, fallbackSlug string) (string, error
 }
 
 // guessImageExt returns an extension based on URL hints. Defaults to ".jpg".
+// LinkedIn document/carousel posts use URLs containing "feedshare-document"
+// with a PDF payload — these are detected and returned as ".pdf".
 func guessImageExt(url string) string {
 	lower := strings.ToLower(url)
 	switch {
+	case strings.Contains(lower, "feedshare-document") || strings.Contains(lower, "/pdf"):
+		return ".pdf"
 	case strings.Contains(lower, ".png"):
 		return ".png"
 	case strings.Contains(lower, ".gif"):
