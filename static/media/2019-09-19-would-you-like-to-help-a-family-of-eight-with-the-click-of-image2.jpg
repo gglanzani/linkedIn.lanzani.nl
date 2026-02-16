@@ -1,0 +1,15 @@
+#EXTM3U
+#EXT-X-VERSION:7
+#EXT-X-INDEPENDENT-SEGMENTS
+#EXT-X-STREAM-INF:BANDWIDTH=1096000,CODECS="mp4a.40.2,avc1.42001e",RESOLUTION=640x360,CLOSED-CAPTIONS=NONE
+https://dms.licdn.com/playlist/vid/pl/v2/C4E05AQHviS7K1j6S7g/feedshare-captions-thumbnails-dualWrite-inhouse-hls_h264_aac_600k/feedshare-captions-thumbnails-dualWrite-inhouse-hls_h264_aac_600k/0/1568901974751?e=1771789180&v=beta&t=SltqHav9mcSBuIUCYviTvdRy0XxQiztsifwfeuqw8k8
+#EXT-X-STREAM-INF:BANDWIDTH=1596000,CODECS="mp4a.40.2,avc1.42001e",RESOLUTION=768x432,CLOSED-CAPTIONS=NONE
+https://dms.licdn.com/playlist/vid/pl/v2/C4E05AQHviS7K1j6S7g/feedshare-captions-thumbnails-dualWrite-inhouse-hls_h264_aac_1200k/feedshare-captions-thumbnails-dualWrite-inhouse-hls_h264_aac_1200k/0/1568901556279?e=1771789180&v=beta&t=vjhLadoFgFCwASltkQkaRcKrCSNG-GnmZyhjm150CZw
+#EXT-X-STREAM-INF:BANDWIDTH=1596000,CODECS="mp4a.40.2,avc1.42001e",RESOLUTION=320x180,CLOSED-CAPTIONS=NONE
+https://dms.licdn.com/playlist/vid/pl/v2/C4E05AQHviS7K1j6S7g/feedshare-captions-thumbnails-dualWrite-inhouse-hls_h264_aac_200k/feedshare-captions-thumbnails-dualWrite-inhouse-hls_h264_aac_200k/0/1568901546898?e=1771789180&v=beta&t=jyPo8H05Dx-3kOjT2S-ZNIMNZvlQU5MVjDQiyb1MRyc
+#EXT-X-STREAM-INF:BANDWIDTH=1596000,CODECS="mp4a.40.2,avc1.42001e",RESOLUTION=960x540,CLOSED-CAPTIONS=NONE
+https://dms.licdn.com/playlist/vid/pl/v2/C4E05AQHviS7K1j6S7g/feedshare-captions-thumbnails-dualWrite-inhouse-hls_h264_aac_2200k/feedshare-captions-thumbnails-dualWrite-inhouse-hls_h264_aac_2200k/0/1568901507124?e=1771789180&v=beta&t=HRjuupL3SMTGw1xY88jxZTqRhE9I3iIA_kErkCd0mLU
+#EXT-X-STREAM-INF:BANDWIDTH=1596000,CODECS="mp4a.40.2,avc1.42001e",RESOLUTION=480x270,CLOSED-CAPTIONS=NONE
+https://dms.licdn.com/playlist/vid/pl/v2/C4E05AQHviS7K1j6S7g/feedshare-captions-thumbnails-dualWrite-inhouse-hls_h264_aac_300k/feedshare-captions-thumbnails-dualWrite-inhouse-hls_h264_aac_300k/0/1568901515504?e=1771789180&v=beta&t=Iz_4jDUltJWB_TeKpDDuccILLd54g5PHdkYaDBSUTmI
+#EXT-X-STREAM-INF:BANDWIDTH=4096000,CODECS="mp4a.40.2,avc1.42001e",RESOLUTION=1280x720,CLOSED-CAPTIONS=NONE
+https://dms.licdn.com/playlist/vid/pl/v2/C4E05AQHviS7K1j6S7g/feedshare-captions-thumbnails-dualWrite-inhouse-hls_h264_aac_3300k/feedshare-captions-thumbnails-dualWrite-inhouse-hls_h264_aac_3300k/0/1568901570230?e=1771789180&v=beta&t=hE0Roqitio-z0SAhhGBmu14CfQasRpYAsYbMmzLI1lU
