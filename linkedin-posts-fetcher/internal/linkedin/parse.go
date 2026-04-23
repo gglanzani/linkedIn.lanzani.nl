@@ -298,10 +298,11 @@ func ParseChangelogPost(evt ChangelogEvent) *hugo.Post {
 
 	// Build URL from resource ID
 	if evt.ResourceID != "" {
-		post.URL = fmt.Sprintf("https://www.linkedin.com/feed/update/%s", evt.ResourceID)
+		resourceID := string(evt.ResourceID)
+		post.URL = fmt.Sprintf("https://www.linkedin.com/feed/update/%s", resourceID)
 
 		// Build analytics URL
-		activityURN := strings.Replace(evt.ResourceID, "urn:li:share:", "urn:li:activity:", 1)
+		activityURN := strings.Replace(resourceID, "urn:li:share:", "urn:li:activity:", 1)
 		activityURN = strings.Replace(activityURN, "urn:li:ugcPost:", "urn:li:activity:", 1)
 		post.AnalyticsURL = fmt.Sprintf("https://www.linkedin.com/analytics/post-summary/%s/", activityURN)
 	}

@@ -23,6 +23,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/lanzani/linkedin-posts-fetcher/internal/hugo"
@@ -117,9 +119,105 @@ func resolveDirs() (contentDir, mediaDir string) {
 // generate – fetch posts and write Hugo markdown
 // ---------------------------------------------------------------------------
 
+const lastFetchFile = ".last-fetch"
+
+func readLastFetch(contentDir string) (int64, bool) {
+	data, err := os.ReadFile(filepath.Join(contentDir, lastFetchFile))
+	if err != nil {
+		return 0, false
+	}
+	ms, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return ms, true
+}
+
+func writeLastFetch(contentDir string, ms int64) {
+	path := filepath.Join(contentDir, lastFetchFile)
+	_ = os.WriteFile(path, []byte(strconv.FormatInt(ms, 10)+"\n"), 0o644)
+}
+
 func runGenerate(client *linkedin.Client, contentDir string) {
 	log.Println("=== Generating Hugo posts from LinkedIn ===")
 	log.Printf("Content dir: %s", contentDir)
+
+	startMs := time.Now().UnixMilli()
+
+	// Check if we can do an incremental fetch via the Changelog API
+	if lastMs, ok := readLastFetch(contentDir); ok {
+		age := time.Since(time.UnixMilli(lastMs))
+		if age <= 27*24*time.Hour { // Changelog API has a 28-day window
+			log.Printf("Last fetch: %s ago — using Changelog API for incremental update", age.Round(time.Minute))
+			created, errors := runChangelogGenerate(client, contentDir, lastMs)
+			if created >= 0 { // -1 signals fallback needed
+				writeLastFetch(contentDir, startMs)
+				log.Printf("=== Done (incremental). Created: %d, Errors: %d ===", created, errors)
+				return
+			}
+			log.Println("Changelog fetch failed, falling back to full Snapshot API")
+		} else {
+			log.Printf("Last fetch: %s ago — too old for Changelog API (28-day window), doing full fetch", age.Round(time.Hour))
+		}
+	} else {
+		log.Println("No previous fetch recorded — doing full Snapshot API fetch")
+	}
+
+	created, skipped, errors := runSnapshotGenerate(client, contentDir)
+	writeLastFetch(contentDir, startMs)
+	log.Printf("=== Done (full). Created: %d, Skipped (existing): %d, Errors: %d ===",
+		created, skipped, errors)
+}
+
+// runChangelogGenerate fetches only new posts via the Changelog API.
+// Returns (created, errors) on success, or (-1, 0) if the caller should fall back to snapshot.
+func runChangelogGenerate(client *linkedin.Client, contentDir string, sinceMs int64) (int, int) {
+	events, err := client.FetchAllChangelogEvents(sinceMs)
+	if err != nil {
+		log.Printf("⚠ Changelog API error: %v", err)
+		return -1, 0
+	}
+
+	log.Printf("Received %d changelog events since last fetch", len(events))
+
+	knownURLs, err := hugo.LoadExistingPostURLs(contentDir)
+	if err != nil {
+		log.Printf("⚠ Could not load existing post URLs: %v", err)
+		knownURLs = map[string]struct{}{}
+	}
+
+	created := 0
+	errors := 0
+	for i, evt := range events {
+		post := linkedin.ParseChangelogPost(evt)
+		if post == nil {
+			continue
+		}
+
+		fallback := fmt.Sprintf("linkedin-post-%d", i+1)
+		fname, err := hugo.WritePost(contentDir, *post, fallback, knownURLs)
+		if err != nil {
+			log.Printf("  ⚠ Error writing post: %v", err)
+			errors++
+			continue
+		}
+		if fname != "" {
+			created++
+			log.Printf("  + %s", fname)
+		}
+	}
+
+	return created, errors
+}
+
+// runSnapshotGenerate does a full fetch via the Snapshot API (first run or fallback).
+func runSnapshotGenerate(client *linkedin.Client, contentDir string) (created, skipped, errors int) {
+	knownURLs, err := hugo.LoadExistingPostURLs(contentDir)
+	if err != nil {
+		log.Printf("⚠ Could not load existing post URLs: %v", err)
+		knownURLs = map[string]struct{}{}
+	}
+	log.Printf("Found %d existing post URLs for dedup", len(knownURLs))
 
 	// First, fetch RICH_MEDIA to build a media lookup (images live here, not in MEMBER_SHARE_INFO)
 	var richMedia []linkedin.RichMediaItem
@@ -131,10 +229,6 @@ func runGenerate(client *linkedin.Client, contentDir string) {
 		richMedia = linkedin.ParseRichMedia(rmData)
 		log.Printf("Found %d media items with valid links (out of %d total)", len(richMedia), len(rmData))
 	}
-
-	created := 0
-	skipped := 0
-	errors := 0
 
 	// Fetch MEMBER_SHARE_INFO (the main domain for your own posts)
 	log.Println("Fetching MEMBER_SHARE_INFO from Snapshot API...")
@@ -160,7 +254,7 @@ func runGenerate(client *linkedin.Client, contentDir string) {
 			}
 
 			fallback := fmt.Sprintf("linkedin-post-%d", i+1)
-			fname, err := hugo.WritePost(contentDir, *post, fallback)
+			fname, err := hugo.WritePost(contentDir, *post, fallback, knownURLs)
 			if err != nil {
 				log.Printf("  ⚠ Error writing post: %v", err)
 				errors++
@@ -189,7 +283,7 @@ func runGenerate(client *linkedin.Client, contentDir string) {
 			}
 
 			fallback := fmt.Sprintf("linkedin-article-%d", i+1)
-			fname, err := hugo.WritePost(contentDir, *post, fallback)
+			fname, err := hugo.WritePost(contentDir, *post, fallback, knownURLs)
 			if err != nil {
 				log.Printf("  ⚠ Error writing article: %v", err)
 				errors++
@@ -204,8 +298,7 @@ func runGenerate(client *linkedin.Client, contentDir string) {
 		}
 	}
 
-	log.Printf("=== Done. Created: %d, Skipped (existing): %d, Errors: %d ===",
-		created, skipped, errors)
+	return created, skipped, errors
 }
 
 // ---------------------------------------------------------------------------

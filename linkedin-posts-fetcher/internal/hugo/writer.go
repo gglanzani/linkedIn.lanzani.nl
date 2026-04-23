@@ -28,8 +28,9 @@ type Post struct {
 }
 
 var (
-	reNonAlnum    = regexp.MustCompile(`[^a-z0-9]+`)
-	reMultiDash   = regexp.MustCompile(`-{2,}`)
+	reNonAlnum = regexp.MustCompile(`[^a-z0-9]+`)
+	reMultiDash = regexp.MustCompile(`-{2,}`)
+	reFrontmatterURL = regexp.MustCompile(`(?m)^\s*url\s*=\s*"([^"]+)"`)
 )
 
 // Slugify converts a title string into a URL-friendly slug matching the
@@ -87,13 +88,52 @@ func ImageFilename(postFilename string, imageIndex int, ext string) string {
 	return fmt.Sprintf("%s-image%d%s", base, imageIndex, ext)
 }
 
+// LoadExistingPostURLs scans contentDir for markdown files and returns the set
+// of LinkedIn post URLs already present in their frontmatter. Use this to
+// avoid re-creating posts when filenames have changed between runs.
+func LoadExistingPostURLs(contentDir string) (map[string]struct{}, error) {
+	entries, err := os.ReadDir(contentDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return map[string]struct{}{}, nil
+		}
+		return nil, err
+	}
+	urls := make(map[string]struct{}, len(entries))
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(contentDir, e.Name()))
+		if err != nil {
+			continue
+		}
+		if m := reFrontmatterURL.FindSubmatch(data); m != nil {
+			urls[string(m[1])] = struct{}{}
+		}
+	}
+	return urls, nil
+}
+
 // WritePost writes a Hugo markdown file to contentDir.
-// It returns the filename written, or ("", nil) if the file already exists (skip).
-func WritePost(contentDir string, post Post, fallbackSlug string) (string, error) {
+// It returns the filename written, or ("", nil) if the post should be skipped.
+//
+// Dedup logic (in order):
+//  1. If post.URL is non-empty and present in knownURLs, skip (content already exists
+//     even if under a different filename). knownURLs is updated on a successful write.
+//  2. If the target filename already exists on disk, skip.
+func WritePost(contentDir string, post Post, fallbackSlug string, knownURLs map[string]struct{}) (string, error) {
+	// URL-based dedup: works even when filenames change between runs.
+	if post.URL != "" && knownURLs != nil {
+		if _, exists := knownURLs[post.URL]; exists {
+			return "", nil
+		}
+	}
+
 	fname := Filename(post.Date, post.Title, fallbackSlug)
 	path := filepath.Join(contentDir, fname)
 
-	// Dedup: skip if file already exists
+	// Filename-based dedup: fallback for posts without a URL.
 	if _, err := os.Stat(path); err == nil {
 		return "", nil
 	}
@@ -153,6 +193,10 @@ func WritePost(contentDir string, post Post, fallbackSlug string) (string, error
 
 	if err := os.WriteFile(path, []byte(buf.String()), 0o644); err != nil {
 		return "", fmt.Errorf("writing %s: %w", fname, err)
+	}
+
+	if post.URL != "" && knownURLs != nil {
+		knownURLs[post.URL] = struct{}{}
 	}
 
 	return fname, nil

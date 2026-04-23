@@ -18,6 +18,7 @@ import random
 import re
 import sys
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -29,6 +30,20 @@ AUTH_DIR = Path(__file__).resolve().parent / ".auth"
 AUTH_STATE_FILE = AUTH_DIR / "state.json"
 
 FRONTMATTER_RE = re.compile(r"^\+\+\+\n(.*?)\n\+\+\+", re.DOTALL)
+
+LIKES_SELECTOR = (
+    "p._3a5099c8._1f7b0faa._0fba6839._9500257f._8961e6a3."
+    "b17e1ae9._524dc3d4._1e605ce8._549691dd._0447a2ac"
+)
+COMMENTS_SELECTOR = (
+    "p._3a5099c8._1f7b0faa._0fba6839._9500257f._8961e6a3."
+    "b17e1ae9._524dc3d4._1e605ce8.d8b6e5f8"
+)
+IMPRESSIONS_SELECTOR = (
+    "p._3a5099c8._1f7b0faa.caa4ef5c._8b08c498._975606c5."
+    "ad4ef320._0e7674a8.a644e2c2._4646031b.d8b6e5f8"
+)
+MAX_POST_AGE = timedelta(days=365)
 
 
 def parse_frontmatter(content: str) -> tuple[str, str, str]:
@@ -55,6 +70,25 @@ def extract_metric(fm_text: str, key: str) -> int | None:
     """Extract an integer metric from frontmatter, e.g. likes = 5."""
     m = re.search(rf"^\s*{key}\s*=\s*(\d+)", fm_text, re.MULTILINE)
     return int(m.group(1)) if m else None
+
+
+def extract_post_date(fm_text: str, md_file: Path) -> datetime | None:
+    """Extract the post date from frontmatter, falling back to filename."""
+    m = re.search(r'^\s*date\s*=\s*"([^"]+)"', fm_text, re.MULTILINE)
+    if m:
+        try:
+            return datetime.fromisoformat(m.group(1))
+        except ValueError:
+            pass
+
+    m = re.match(r"(\d{4}-\d{2}-\d{2})-", md_file.name)
+    if m:
+        try:
+            return datetime.strptime(m.group(1), "%Y-%m-%d")
+        except ValueError:
+            pass
+
+    return None
 
 
 def has_nonzero_metrics(fm_text: str) -> bool:
@@ -107,6 +141,33 @@ def update_frontmatter(fm_text: str, likes: int, views: int, comments: int) -> s
     return fm_text
 
 
+def parse_metric_text(text: str, *, suffix: str | None = None) -> int:
+    """Extract an integer metric from element text."""
+    cleaned = " ".join(text.strip().split())
+    if not cleaned:
+        return 0
+
+    if suffix:
+        m = re.search(rf"([\d,]+)\s+{re.escape(suffix)}\b", cleaned, re.IGNORECASE)
+        if m:
+            return int(m.group(1).replace(",", ""))
+
+    m = re.search(r"([\d,]+)", cleaned)
+    if m:
+        return int(m.group(1).replace(",", ""))
+
+    return 0
+
+
+def extract_metric_from_selector(page, selector: str, *, suffix: str | None = None) -> int:
+    """Return the first metric found for a selector, or 0 if none is found."""
+    for el in page.query_selector_all(selector):
+        value = parse_metric_text(el.inner_text(), suffix=suffix)
+        if value:
+            return value
+    return 0
+
+
 def scrape_post(page, url: str) -> dict:
     """Visit a LinkedIn post URL and scrape metrics.
 
@@ -124,72 +185,21 @@ def scrape_post(page, url: str) -> dict:
 
     # --- Likes ---
     try:
-        likes_el = page.query_selector(
-            "span.social-details-social-counts__social-proof-text"
-        )
-        likes_fallback = page.query_selector(
-            "span.social-details-social-counts__reactions-count"
-        )
-        if likes_el:
-            text = likes_el.inner_text().strip()
-            # Formats: "N others" or just a number, or "Name and N others"
-            m = re.search(r"([\d,]+)\s+others?", text)
-            if m:
-                metrics["likes"] = int(m.group(1).replace(",", "")) + 1
-            else:
-                # Try plain number
-                m = re.search(r"^([\d,]+)$", text)
-                if m:
-                    metrics["likes"] = int(m.group(1).replace(",", ""))
-                else:
-                    # Single person liked (no "others"), so it's 1
-                    metrics["likes"] = 1
-        elif likes_fallback:
-            metrics["likes"] = likes_fallback.inner_text().strip()
+        metrics["likes"] = extract_metric_from_selector(page, LIKES_SELECTOR)
     except Exception as e:
         print(f"    [WARN] Error scraping likes: {e}")
 
     # --- Comments ---
     try:
-        comment_buttons = page.query_selector_all(
-            "button.social-details-social-counts__count-value-button"
-        )
-        for btn in comment_buttons:
-            text = btn.inner_text().strip().lower()
-            m = re.search(r"([\d,]+)\s*comment", text)
-            if m:
-                metrics["comments"] = int(m.group(1).replace(",", ""))
-                break
-        # Alternative selector
-        if metrics["comments"] == 0:
-            comment_spans = page.query_selector_all(
-                "span.social-details-social-counts__count-value"
-            )
-            for span in comment_spans:
-                text = span.inner_text().strip().lower()
-                m = re.search(r"([\d,]+)\s*comment", text)
-                if m:
-                    metrics["comments"] = int(m.group(1).replace(",", ""))
-                    break
+        metrics["comments"] = extract_metric_from_selector(page, COMMENTS_SELECTOR)
     except Exception as e:
         print(f"    [WARN] Error scraping comments: {e}")
 
     # --- Views / Impressions ---
     try:
-        views_el = page.query_selector("span.ca-entry-point__num-views strong")
-        if views_el:
-            text = views_el.inner_text().strip()
-            m = re.search(r"([\d,]+)", text)
-            if m:
-                metrics["views"] = int(m.group(1).replace(",", ""))
-        # Alternative: try the analytics-like selector
-        if metrics["views"] == 0:
-            views_el2 = page.query_selector("span.ca-entry-point__num-views")
-            if views_el2:
-                text = views_el2.inner_text().strip()
-                m = re.search(r"([\d,]+)", text)
-                if m:
-                    metrics["views"] = int(m.group(1).replace(",", ""))
+        metrics["views"] = extract_metric_from_selector(
+            page, IMPRESSIONS_SELECTOR, suffix="impressions"
+        )
     except Exception as e:
         print(f"    [WARN] Error scraping views: {e}")
 
@@ -234,6 +244,7 @@ def do_scrape(force: bool = False):
     # Collect all markdown files
     md_files = sorted(POSTS_DIR.glob("*.md"), reverse=True)
     print(f"Found {len(md_files)} posts in {POSTS_DIR}")
+    cutoff = datetime.now() - MAX_POST_AGE
 
     # Pre-filter: collect posts that need scraping
     to_scrape = []
@@ -241,6 +252,9 @@ def do_scrape(force: bool = False):
         content = md_file.read_text(encoding="utf-8")
         fm_text, body, raw = parse_frontmatter(content)
         if not fm_text:
+            continue
+        post_date = extract_post_date(fm_text, md_file)
+        if post_date and post_date < cutoff:
             continue
         url = extract_url(fm_text)
         if not url:

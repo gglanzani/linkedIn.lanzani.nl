@@ -172,18 +172,43 @@ type ChangelogResponse struct {
 	Paging   Paging           `json:"paging"`
 }
 
+// FlexibleString handles LinkedIn fields that may arrive as either a JSON
+// string or a JSON number.
+type FlexibleString string
+
+func (s *FlexibleString) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*s = ""
+		return nil
+	}
+
+	var str string
+	if err := json.Unmarshal(data, &str); err == nil {
+		*s = FlexibleString(str)
+		return nil
+	}
+
+	var num json.Number
+	if err := json.Unmarshal(data, &num); err == nil {
+		*s = FlexibleString(num.String())
+		return nil
+	}
+
+	return fmt.Errorf("decoding flexible string from %s", string(data))
+}
+
 // ChangelogEvent represents a single changelog activity record.
 type ChangelogEvent struct {
-	ID                string          `json:"id"`
-	ActivityID        string          `json:"activityId"`
+	ID                FlexibleString  `json:"id"`
+	ActivityID        FlexibleString  `json:"activityId"`
 	CapturedAt        int64           `json:"capturedAt"`
 	ProcessedAt       int64           `json:"processedAt"`
 	ConfigVersion     int             `json:"configVersion"`
-	Owner             string          `json:"owner"`
-	Actor             string          `json:"actor"`
+	Owner             FlexibleString  `json:"owner"`
+	Actor             FlexibleString  `json:"actor"`
 	ResourceName      string          `json:"resourceName"`
-	ResourceID        string          `json:"resourceId"`
-	ResourceURI       string          `json:"resourceUri"`
+	ResourceID        FlexibleString  `json:"resourceId"`
+	ResourceURI       FlexibleString  `json:"resourceUri"`
 	Method            string          `json:"method"`         // CREATE, UPDATE, PARTIAL_UPDATE, DELETE
 	MethodName        string          `json:"methodName"`     // optional, only for ACTION
 	ActivityStatus    string          `json:"activityStatus"` // SUCCESS, FAILURE, SUCCESSFUL_REPLAY
@@ -214,6 +239,47 @@ func (c *Client) FetchChangelog(startTimeMs int64, count int) (*ChangelogRespons
 		return nil, fmt.Errorf("decoding changelog response: %w", err)
 	}
 	return &resp, nil
+}
+
+// FetchAllChangelogEvents paginates through all changelog events starting from
+// startTimeMs (epoch milliseconds). Returns events in chronological order.
+func (c *Client) FetchAllChangelogEvents(startTimeMs int64) ([]ChangelogEvent, error) {
+	var all []ChangelogEvent
+	cursor := startTimeMs
+
+	for {
+		resp, err := c.FetchChangelog(cursor, 50)
+		if err != nil {
+			if len(all) > 0 {
+				break
+			}
+			return nil, err
+		}
+
+		all = append(all, resp.Elements...)
+
+		if len(resp.Elements) == 0 {
+			break
+		}
+
+		// Check for a "next" link
+		hasNext := false
+		for _, link := range resp.Paging.Links {
+			if link.Rel == "next" {
+				hasNext = true
+				break
+			}
+		}
+		if !hasNext {
+			break
+		}
+
+		// Advance cursor past the last event we received
+		last := resp.Elements[len(resp.Elements)-1]
+		cursor = last.CapturedAt + 1
+	}
+
+	return all, nil
 }
 
 // CheckAuthorization verifies that changelog event generation is active for
